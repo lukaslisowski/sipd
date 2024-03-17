@@ -167,11 +167,6 @@ func main() {
 			var acode, callerid, dialplan, acl string
 			err = db.QueryRow("SELECT acode, callerid, dialplan, acl FROM register WHERE addr = $1",
 				m.AddrFrom("Via")).Scan(&acode, &callerid, &dialplan, &acl)
-			if err != nil || !m.CheckIP(saddr.IP, acl) {
-				m["Request"] = "SIP/2.0 403 Forbidden"
-				m.Reply(saddr)
-				continue
-			}
 
 			// re-INVITE check
 			var addr, dst string
@@ -320,8 +315,6 @@ func main() {
 
 			if addr == "" {
 				m["Request"] = "SIP/2.0 404 Not Found"
-			} else if !m.CheckDialplan(dialplan) {
-				m["Request"] = "SIP/2.0 403 Forbidden"
 			} else {
 				number := m.NameFrom("Request")
 				// call number in ABC format
