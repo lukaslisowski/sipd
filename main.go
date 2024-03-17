@@ -140,25 +140,16 @@ func main() {
 
 		switch m.MethodFrom("Request") {
 		case "REGISTER":
-			if m["Authorization"] == "" {
-				m["Request"] = "SIP/2.0 401 Unauthorized"
-				m["WWW-Authenticate"] = fmt.Sprintf(`Digest algorithm=MD5, realm="%s", nonce="%s"`, realm, m.RandHexString(4))
+			var name, secret, acl string
+			db.QueryRow("SELECT name, secret, acl FROM register WHERE name = $1", m.ValueFrom("Authorization", "username")).Scan(&name, &secret, &acl)
+			m["Request"] = "SIP/2.0 200 OK"
+			if m["Expires"] == "0" || strings.Contains(m["Contact"], "expires=0") {
+				db.Exec("UPDATE register SET addr = '' WHERE name = $1", name)
 			} else {
-				var name, secret, acl string
-				db.QueryRow("SELECT name, secret, acl FROM register WHERE name = $1", m.ValueFrom("Authorization", "username")).Scan(&name, &secret, &acl)
-				if secret == "" || !m.CheckIP(saddr.IP, acl) || m.ValueFrom("Authorization", "response") != m.Digest(secret) {
-					m["Request"] = "SIP/2.0 403 Forbidden"
-				} else {
-					m["Request"] = "SIP/2.0 200 OK"
-					if m["Expires"] == "0" || strings.Contains(m["Contact"], "expires=0") {
-						db.Exec("UPDATE register SET addr = '' WHERE name = $1", name)
-					} else {
-						db.Exec("UPDATE register SET addr = $1 WHERE name = $2", m.AddrFrom("Contact"), name)
-					}
-				}
-
-				delete(m, "Authorization")
+				db.Exec("UPDATE register SET addr = $1 WHERE name = $2", m.AddrFrom("Contact"), name)
 			}
+
+			delete(m, "Authorization")
 
 			m.Reply(saddr)
 
